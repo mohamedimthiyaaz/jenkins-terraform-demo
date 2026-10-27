@@ -1,36 +1,57 @@
-terraform {
-  required_version = ">= 1.5.0"
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+  owners      = ["amazon"]
 
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.6"
-    }
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
   }
 }
 
-provider "aws" {
-  region = "ap-south-1"
-}
+resource "aws_security_group" "web" {
+  name        = "jenkins-tf-web-sg"
+  description = "Allow HTTP and SSH"
 
-resource "random_id" "suffix" {
-  byte_length = 4
-}
+  ingress {
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-resource "aws_s3_bucket" "demo" {
-  bucket        = "jenkins-tf-demo-${random_id.suffix.hex}"
-  force_destroy = true
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
   tags = {
+    Project = "jenkins-terraform-demo"
+  }
+}
+
+resource "aws_instance" "web" {
+  ami                    = data.aws_ami.amazon_linux.id
+  instance_type          = "t3.micro"
+  vpc_security_group_ids = [aws_security_group.web.id]
+
+  tags = {
+    Name      = "jenkins-tf-web"
     Project   = "jenkins-terraform-demo"
     ManagedBy = "terraform"
   }
 }
 
-output "bucket_name" {
-  value = aws_s3_bucket.demo.bucket
+output "instance_public_ip" {
+  value = aws_instance.web.public_ip
 }
