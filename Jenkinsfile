@@ -1,57 +1,57 @@
-pipeline {
-    agent any
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+  owners      = ["amazon"]
 
-    parameters {
-        choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'apply = உருவாக்கு, destroy = அழி')
-    }
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+}
 
-    environment {
-        AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
-        AWS_DEFAULT_REGION    = 'ap-south-1'
-    }
+resource "aws_security_group" "web" {
+  name        = "jenkins-tf-web-sg"
+  description = "Allow HTTP and SSH"
 
-    stages {
-        stage('Terraform Init') {
-            steps {
-                bat 'terraform init -input=false'
-            }
-        }
+  ingress {
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-        stage('Terraform Format') {
-            steps {
-                bat 'terraform fmt -check -recursive'
-            }
-        }
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-        stage('Terraform Validate') {
-            steps {
-                bat 'terraform validate'
-            }
-        }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-        stage('Terraform Plan') {
-            steps {
-                script {
-                    if (params.ACTION == 'destroy') {
-                        bat 'terraform plan -destroy -input=false -out=tfplan'
-                    } else {
-                        bat 'terraform plan -input=false -out=tfplan'
-                    }
-                }
-            }
-        }
+  tags = {
+    Project = "jenkins-terraform-demo"
+  }
+}
 
-        stage('Approval') {
-            steps {
-                input message: "Plan-ஐப் பார்த்தீர்களா? ${params.ACTION} செய்யலாமா?"
-            }
-        }
+resource "aws_instance" "web" {
+  ami                    = data.aws_ami.amazon_linux.id
+  instance_type          = "t3.micro"
+  vpc_security_group_ids = [aws_security_group.web.id]
 
-        stage('Terraform Apply') {
-            steps {
-                bat 'terraform apply -input=false tfplan'
-            }
-        }
-    }
+  tags = {
+    Name      = "jenkins-tf-web"
+    Project   = "jenkins-terraform-demo"
+    ManagedBy = "terraform"
+  }
+}
+
+output "instance_public_ip" {
+  value = aws_instance.web.public_ip
 }
