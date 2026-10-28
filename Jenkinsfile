@@ -15,6 +15,7 @@ pipeline {
     stages {
         stage('Terraform Init') {
             steps {
+                bat 'if exist .terraform rmdir /s /q .terraform'
                 bat 'terraform init -input=false'
                 bat "terraform workspace select -or-create ${params.ENVIRONMENT}"
             }
