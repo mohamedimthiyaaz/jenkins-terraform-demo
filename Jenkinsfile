@@ -15,7 +15,7 @@ pipeline {
     stages {
         stage('Terraform Init') {
             steps {
-                bat 'terraform init -input=false'
+                bat 'terraform init -input=false -reconfigure'
                 bat "terraform workspace select -or-create ${params.ENVIRONMENT}"
             }
         }
