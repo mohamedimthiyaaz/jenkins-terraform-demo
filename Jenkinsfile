@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     parameters {
-        choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'apply = உருவாக்கு, destroy = அழி')
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'prod'], description: 'Which environment')
+        choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'apply = create, destroy = remove')
     }
 
     environment {
@@ -15,6 +16,7 @@ pipeline {
         stage('Terraform Init') {
             steps {
                 bat 'terraform init -input=false'
+                bat "terraform workspace select -or-create ${params.ENVIRONMENT}"
             }
         }
 
@@ -34,9 +36,9 @@ pipeline {
             steps {
                 script {
                     if (params.ACTION == 'destroy') {
-                        bat 'terraform plan -destroy -input=false -out=tfplan'
+                        bat "terraform plan -destroy -input=false -var-file=${params.ENVIRONMENT}.tfvars -out=tfplan"
                     } else {
-                        bat 'terraform plan -input=false -out=tfplan'
+                        bat "terraform plan -input=false -var-file=${params.ENVIRONMENT}.tfvars -out=tfplan"
                     }
                 }
             }
@@ -44,7 +46,7 @@ pipeline {
 
         stage('Approval') {
             steps {
-                input message: "Plan-ஐப் பார்த்தீர்களா? ${params.ACTION} செய்யலாமா?"
+                input message: "Environment: ${params.ENVIRONMENT}. Did you read the plan? Proceed with ${params.ACTION}?"
             }
         }
 
